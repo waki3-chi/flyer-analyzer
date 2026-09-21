@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>フライヤーデザイン解析ツール</title>
+<style>
+  :root{
+    --bg:#15171c;
+    --panel:#1d2029;
+    --panel-alt:#232734;
+    --border:#333849;
+    --text:#e8e9ee;
+    --text-dim:#9a9fb0;
+    --accent:#7c9dff;
+    --accent-dim:#3d4b7a;
+    --good:#5fd68b;
+    --warn:#f5b95d;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,-apple-system,sans-serif;font-size:14px;}
+  h1{font-size:18px;margin:0;font-weight:600;}
+  h2{font-size:14px;margin:0 0 10px;font-weight:600;color:var(--text);}
+  h3{font-size:12px;margin:0 0 6px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:.03em;}
+  header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--panel);}
+  header p{margin:2px 0 0;font-size:12px;color:var(--text-dim);}
+  .layout{display:flex;gap:16px;padding:16px;align-items:flex-start;}
+  .col-left{flex:1 1 62%;min-width:0;}
+  .col-right{flex:1 1 38%;min-width:340px;max-width:480px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px;}
+  .dropzone{border:2px dashed var(--border);border-radius:10px;padding:26px;text-align:center;color:var(--text-dim);cursor:pointer;transition:.15s;background:var(--panel-alt);}
+  .dropzone.drag{border-color:var(--accent);color:var(--accent);background:#1c2136;}
+  .dropzone strong{color:var(--text);}
+  #fileInput{display:none;}
+  .canvas-wrap{position:relative;width:100%;background:repeating-conic-gradient(#20232c 0% 25%, #262a35 0% 50%) 50%/16px 16px;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:120px;}
+  #mainCanvas{max-width:100%;height:auto;display:block;}
+  .empty-hint{padding:40px 10px;color:var(--text-dim);text-align:center;}
+  .overlay-controls{display:flex;flex-direction:column;gap:10px;margin-top:12px;}
+  .overlay-row{display:grid;grid-template-columns:22px 1fr 90px;align-items:center;gap:8px;}
+  .overlay-row label.name{display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;}
+  .overlay-row input[type=range]{width:100%;accent-color:var(--accent);}
+  .overlay-row .pct{font-size:11px;color:var(--text-dim);text-align:right;}
+  .swatch-dot{width:10px;height:10px;border-radius:3px;display:inline-block;}
+  .spiral-orient{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;}
+  .spiral-orient button{flex:1;min-width:56px;padding:6px 4px;background:var(--panel-alt);border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:16px;cursor:pointer;}
+  .spiral-orient button.active{border-color:var(--accent);color:var(--accent);background:#1c2136;}
+  .row-inline{display:flex;align-items:center;gap:10px;}
+  .row-inline label{font-size:12px;color:var(--text-dim);white-space:nowrap;}
+  input[type=range]{accent-color:var(--accent);}
+  .btn{background:var(--accent-dim);color:var(--text);border:1px solid var(--border);padding:8px 14px;border-radius:7px;cursor:pointer;font-size:13px;}
+  .btn:hover{background:var(--accent);color:#111;}
+  .btn-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .k-slider-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .k-slider-row input[type=range]{flex:1;}
+  .k-value{font-size:13px;color:var(--accent);min-width:20px;text-align:center;}
+  .palette-list{display:flex;flex-direction:column;gap:8px;}
+  .swatch-item{display:grid;grid-template-columns:40px 1fr;gap:10px;align-items:center;background:var(--panel-alt);border:1px solid var(--border);border-radius:8px;padding:8px;}
+  .swatch-box{width:40px;height:40px;border-radius:6px;cursor:pointer;border:1px solid rgba(255,255,255,.15);position:relative;}
+  .swatch-box:hover::after{content:"コピー";position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;border-radius:6px;}
+  .swatch-meta{display:flex;flex-direction:column;gap:3px;}
+  .swatch-hex{font-weight:600;font-size:13px;letter-spacing:.02em;}
+  .swatch-values{font-size:11px;color:var(--text-dim);display:flex;gap:10px;flex-wrap:wrap;}
+  .swatch-bar-wrap{background:#12141a;border-radius:4px;height:6px;overflow:hidden;margin-top:3px;}
+  .swatch-bar{height:100%;background:var(--accent);}
+  .analysis-comment{background:var(--panel-alt);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:13px;line-height:1.6;margin-bottom:10px;}
+  .analysis-comment b{color:var(--good);}
+  .score-list{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text-dim);}
+  .score-list div{display:flex;justify-content:space-between;}
+  .score-list span.val{color:var(--text);font-weight:600;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#2a2f3d;border:1px solid var(--accent);color:var(--text);padding:8px 16px;border-radius:20px;font-size:12px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:50;}
+  .toast.show{opacity:1;}
+  .footer-note{font-size:11px;color:var(--text-dim);margin-top:4px;}
+
+  .login-overlay{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px;}
+  .login-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:32px 28px;width:100%;max-width:320px;text-align:center;}
+  .login-box h2{font-size:16px;margin:0 0 6px;font-weight:600;}
+  .login-box p{font-size:12px;color:var(--text-dim);margin:0 0 18px;}
+  .login-box input[type=password]{width:100%;padding:10px 12px;border-radius:7px;border:1px solid var(--border);background:var(--panel-alt);color:var(--text);font-size:14px;margin-bottom:10px;}
+  .login-box input[type=password]:focus{outline:none;border-color:var(--accent);}
+  .login-box .btn{width:100%;padding:10px;font-size:14px;}
+  .login-error{color:#ff6b81;font-size:12px;min-height:16px;margin-top:8px;}
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <h2>フライヤーデザイン解析ツール</h2>
+    <p>パスワードを入力してください</p>
+    <input type="password" id="loginPassword" placeholder="パスワード" autocomplete="off">
+    <button class="btn" id="loginBtn">ログイン</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<div id="appRoot" style="display:none;">
+<header>
+  <div>
+    <h1>フライヤーデザイン解析ツール</h1>
+    <p>配色(RGB/CMYK)とレイアウト構造(黄金比・黄金螺旋・三分割法・対称性)をブラウザ内だけで解析します。画像は外部送信されません。</p>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="col-left">
+    <div class="card">
+      <div id="dropzone" class="dropzone">
+        <strong>クリックして画像を選択</strong> または ドラッグ&ドロップ (JPEG / PNG)
+        <input type="file" id="fileInput" accept="image/png,image/jpeg">
+      </div>
+      <div class="canvas-wrap" id="canvasWrap" style="margin-top:12px;">
+        <div class="empty-hint" id="emptyHint">画像をアップロードすると、ここにプレビューと構造オーバーレイが表示されます。</div>
+        <canvas id="mainCanvas" style="display:none;"></canvas>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="exportPngBtn" disabled>オーバーレイ画像をPNG保存</button>
+        <button class="btn" id="exportOriginalBtn" disabled>元画像を保存</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>構造オーバーレイ</h2>
+      <div class="overlay-controls">
+        <div class="overlay-row">
+          <input type="checkbox" id="chkGolden" checked>
+          <label class="name" for="chkGolden"><span class="swatch-dot" style="background:#ffb648;"></span>黄金比グリッド</label>
+          <div class="row-inline"><input type="range" id="opGolden" min="0" max="100" value="70"><span class="pct" id="opGoldenVal">70%</span></div>
+        </div>
+        <div class="overlay-row">
+          <input type="checkbox" id="chkSpiral">
+          <label class="name" for="chkSpiral"><span class="swatch-dot" style="background:#7c9dff;"></span>黄金螺旋(アンモナイト)</label>
+          <div class="row-inline"><input type="range" id="opSpiral" min="0" max="100" value="80"><span class="pct" id="opSpiralVal">80%</span></div>
+        </div>
+        <div id="spiralOrientWrap" style="display:none;">
+          <div class="spiral-orient">
+            <button data-orient="0" class="active" title="開始位置:左上">↘ 左上</button>
+            <button data-orient="1" title="開始位置:右上">↙ 右上</button>
+            <button data-orient="2" title="開始位置:左下">↗ 左下</button>
+            <button data-orient="3" title="開始位置:右下">↖ 右下</button>
+          </div>
+        </div>
+        <div class="overlay-row">
+          <input type="checkbox" id="chkThirds">
+          <label class="name" for="chkThirds"><span class="swatch-dot" style="background:#5fd68b;"></span>三分割法</label>
+          <div class="row-inline"><input type="range" id="opThirds" min="0" max="100" value="70"><span class="pct" id="opThirdsVal">70%</span></div>
+        </div>
+        <div class="overlay-row">
+          <input type="checkbox" id="chkSymmetry">
+          <label class="name" for="chkSymmetry"><span class="swatch-dot" style="background:#ff6b81;"></span>対称軸</label>
+          <div class="row-inline"><input type="range" id="opSymmetry" min="0" max="100" value="70"><span class="pct" id="opSymmetryVal">70%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-right">
+    <div class="card">
+      <h2>構造解析コメント</h2>
+      <div id="analysisComment" class="analysis-comment">画像をアップロードすると解析結果が表示されます。</div>
+      <h3>スコア詳細</h3>
+      <div class="score-list" id="scoreList"></div>
+    </div>
+
+    <div class="card">
+      <h2>配色パレット</h2>
+      <div class="k-slider-row">
+        <label for="kSlider" style="font-size:12px;color:var(--text-dim);white-space:nowrap;">抽出色数</label>
+        <input type="range" id="kSlider" min="5" max="8" value="6">
+        <span class="k-value" id="kValue">6</span>
+      </div>
+      <div id="paletteList" class="palette-list">
+        <div class="footer-note">画像をアップロードすると主要色が抽出されます。</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn" id="exportJsonBtn" disabled>パレットをJSON出力</button>
+        <button class="btn" id="exportTextBtn" disabled>パレットをテキスト出力</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const LOGIN_HASH = '0072e6b934945d5ba08f9729e00847391922f2f6026a435e704634fb93bf4502';
+  const loginOverlay = document.getElementById('loginOverlay');
+  const appRoot = document.getElementById('appRoot');
+  const loginPassword = document.getElementById('loginPassword');
+  const loginBtn = document.getElementById('loginBtn');
+  const loginError = document.getElementById('loginError');
+
+  // Self-contained SHA-256 (avoids depending on crypto.subtle, which requires a
+  // secure context and is unavailable on plain file:// in some browsers/sandboxes).
+  function sha256Hex(message){
+    function rotr(n,x){ return (x>>>n) | (x<<(32-n)); }
+    const K = [
+      0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+      0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+      0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+      0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+      0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+      0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+      0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+      0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+    ];
+    let H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+
+    const bytes = new TextEncoder().encode(message);
+    const bitLen = bytes.length * 8;
+    const withOne = new Uint8Array(((bytes.length + 9 + 63) >> 6) << 6);
+    withOne.set(bytes);
+    withOne[bytes.length] = 0x80;
+    const dv = new DataView(withOne.buffer);
+    dv.setUint32(withOne.length - 4, bitLen >>> 0);
+    dv.setUint32(withOne.length - 8, Math.floor(bitLen / 4294967296));
+
+    const w = new Uint32Array(64);
+    for (let offset = 0; offset < withOne.length; offset += 64){
+      for (let i = 0; i < 16; i++) w[i] = dv.getUint32(offset + i*4);
+      for (let i = 16; i < 64; i++){
+        const s0 = rotr(7,w[i-15]) ^ rotr(18,w[i-15]) ^ (w[i-15]>>>3);
+        const s1 = rotr(17,w[i-2]) ^ rotr(19,w[i-2]) ^ (w[i-2]>>>10);
+        w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+      }
+      let [a,b,c,d,e,f,g,h] = H;
+      for (let i = 0; i < 64; i++){
+        const S1 = rotr(6,e) ^ rotr(11,e) ^ rotr(25,e);
+        const ch = (e & f) ^ (~e & g);
+        const t1 = (h + S1 + ch + K[i] + w[i]) | 0;
+        const S0 = rotr(2,a) ^ rotr(13,a) ^ rotr(22,a);
+        const maj = (a & b) ^ (a & c) ^ (b & c);
+        const t2 = (S0 + maj) | 0;
+        h=g; g=f; f=e; e=(d+t1)|0; d=c; c=b; b=a; a=(t1+t2)|0;
+      }
+      H = [H[0]+a|0, H[1]+b|0, H[2]+c|0, H[3]+d|0, H[4]+e|0, H[5]+f|0, H[6]+g|0, H[7]+h|0];
+    }
+    return H.map(x => (x >>> 0).toString(16).padStart(8,'0')).join('');
+  }
+
+  function unlock(){
+    loginOverlay.style.display = 'none';
+    appRoot.style.display = '';
+    try { sessionStorage.setItem('flyerToolUnlocked', '1'); } catch(e){}
+  }
+
+  function tryLogin(){
+    const hash = sha256Hex(loginPassword.value);
+    if (hash === LOGIN_HASH){
+      loginError.textContent = '';
+      unlock();
+    } else {
+      loginError.textContent = 'パスワードが違います';
+      loginPassword.value = '';
+      loginPassword.focus();
+    }
+  }
+
+  loginBtn.addEventListener('click', tryLogin);
+  loginPassword.addEventListener('keydown', e=>{ if (e.key === 'Enter') tryLogin(); });
+
+  let alreadyUnlocked = false;
+  try { alreadyUnlocked = sessionStorage.getItem('flyerToolUnlocked') === '1'; } catch(e){}
+  if (alreadyUnlocked){
+    unlock();
+  } else {
+    loginPassword.focus();
+  }
+
+  const MAX_DIM = 1400;
+  const ANALYSIS_DIM = 140;
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const canvas = document.getElementById('mainCanvas');
+  const ctx = canvas.getContext('2d');
+  const emptyHint = document.getElementById('emptyHint');
+  const toast = document.getElementById('toast');
+  const exportPngBtn = document.getElementById('exportPngBtn');
+  const exportOriginalBtn = document.getElementById('exportOriginalBtn');
+  const exportJsonBtn = document.getElementById('exportJsonBtn');
+  const exportTextBtn = document.getElementById('exportTextBtn');
+  const kSlider = document.getElementById('kSlider');
+  const kValue = document.getElementById('kValue');
+  const paletteList = document.getElementById('paletteList');
+  const analysisComment = document.getElementById('analysisComment');
+  const scoreList = document.getElementById('scoreList');
+  const spiralOrientWrap = document.getElementById('spiralOrientWrap');
+
+  const overlayEls = {
+    golden:   { chk: document.getElementById('chkGolden'),   op: document.getElementById('opGolden'),   val: document.getElementById('opGoldenVal') },
+    spiral:   { chk: document.getElementById('chkSpiral'),   op: document.getElementById('opSpiral'),   val: document.getElementById('opSpiralVal') },
+    thirds:   { chk: document.getElementById('chkThirds'),   op: document.getElementById('opThirds'),   val: document.getElementById('opThirdsVal') },
+    symmetry: { chk: document.getElementById('chkSymmetry'), op: document.getElementById('opSymmetry'), val: document.getElementById('opSymmetryVal') },
+  };
+
+  let state = {
+    img: null,
+    w: 0, h: 0,
+    spiralOrient: 0,
+    palette: [],
+    originalDataUrl: null,
+    originalFileName: null,
+  };
+
+  // ---------- image loading ----------
+
+  function showToast(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>toast.classList.remove('show'), 1600);
+  }
+
+  dropzone.addEventListener('click', ()=> fileInput.click());
+  dropzone.addEventListener('dragover', e=>{ e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', e=>{
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', e=>{
+    if (e.target.files && e.target.files[0]) loadFile(e.target.files[0]);
+  });
+
+  function loadFile(file){
+    if (!/^image\/(png|jpeg|jpg)$/.test(file.type)) {
+      showToast('JPEGまたはPNG画像を選択してください');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      state.originalDataUrl = ev.target.result;
+      state.originalFileName = file.name || 'uploaded-image';
+      const img = new Image();
+      img.onload = ()=> onImageReady(img);
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function onImageReady(img){
+    const scale = Math.min(1, MAX_DIM / Math.max(img.width, img.height));
+    state.img = img;
+    state.w = Math.max(1, Math.round(img.width * scale));
+    state.h = Math.max(1, Math.round(img.height * scale));
+    canvas.width = state.w;
+    canvas.height = state.h;
+    canvas.style.display = 'block';
+    emptyHint.style.display = 'none';
+    exportPngBtn.disabled = false;
+    exportOriginalBtn.disabled = false;
+    exportJsonBtn.disabled = false;
+    exportTextBtn.disabled = false;
+
+    runColorAnalysis();
+    runStructureAnalysis();
+    redraw();
+  }
+
+  // ---------- redraw / compositing ----------
+
+  function redraw(){
+    if (!state.img) return;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(state.img, 0, 0, state.w, state.h);
+
+    if (overlayEls.golden.chk.checked) drawGoldenGrid(ctx, state.w, state.h, overlayEls.golden.op.value/100);
+    if (overlayEls.thirds.chk.checked) drawThirds(ctx, state.w, state.h, overlayEls.thirds.op.value/100);
+    if (overlayEls.symmetry.chk.checked) drawSymmetryAxes(ctx, state.w, state.h, overlayEls.symmetry.op.value/100);
+    if (overlayEls.spiral.chk.checked) drawSpiral(ctx, state.w, state.h, overlayEls.spiral.op.value/100, state.spiralOrient);
+  }
+
+  Object.values(overlayEls).forEach(o=>{
+    o.chk.addEventListener('change', ()=>{ spiralOrientWrap.style.display = overlayEls.spiral.chk.checked ? 'block':'none'; redraw(); });
+    o.op.addEventListener('input', ()=>{ o.val.textContent = o.op.value + '%'; redraw(); });
+  });
+
+  document.querySelectorAll('#spiralOrientWrap button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#spiralOrientWrap button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      state.spiralOrient = parseInt(btn.dataset.orient, 10);
+      redraw();
+    });
+  });
+
+  // ---------- overlay drawing ----------
+
+  function drawGoldenGrid(ctx, w, h, alpha){
+    const phiInv = 1/1.618033988749895;
+    const a = 1 - phiInv, b = phiInv; // 0.382, 0.618
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = '#ffb648';
+    ctx.lineWidth = Math.max(1, w*0.0018);
+    [a,b].forEach(f=>{
+      ctx.beginPath(); ctx.moveTo(w*f,0); ctx.lineTo(w*f,h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,h*f); ctx.lineTo(w,h*f); ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  function drawThirds(ctx, w, h, alpha){
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = '#5fd68b';
+    ctx.lineWidth = Math.max(1, w*0.0016);
+    [1/3, 2/3].forEach(f=>{
+      ctx.beginPath(); ctx.moveTo(w*f,0); ctx.lineTo(w*f,h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,h*f); ctx.lineTo(w,h*f); ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  function drawSymmetryAxes(ctx, w, h, alpha){
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = '#ff6b81';
+    ctx.setLineDash([8,6]);
+    ctx.lineWidth = Math.max(1, w*0.002);
+    ctx.beginPath(); ctx.moveTo(w/2,0); ctx.lineTo(w/2,h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,h/2); ctx.lineTo(w,h/2); ctx.stroke();
+    ctx.restore();
+  }
+
+  // Fibonacci square-subdivision spiral: at each step, cut the largest possible square
+  // (side = min of the remaining rect's width/height) anchored at the current "entry" corner,
+  // draw a quarter-circle arc across that square between its entry corner and the diagonally
+  // opposite corner (pivoting on the corner adjacent to both), then continue into whichever
+  // corner of the new remaining rect coincides with that arc's exit point. Because each arc's
+  // exit becomes the next arc's entry, the whole chain forms one continuous inward spiral for
+  // any aspect ratio. Orientations 1-3 are obtained by mirroring the canonical (bottom-left
+  // start) arcs via canvas transforms.
+  function computeSpiralArcs(w, h){
+    const diagonal = { TL:'BR', TR:'BL', BR:'TL', BL:'TR' };
+    const cwPrev = { TR:'TL', BR:'TR', BL:'BR', TL:'BL' };
+    let rx = 0, ry = 0, rw = w, rh = h;
+    let entryCorner = 'BL';
+    const arcs = [];
+    const minSize = Math.min(w, h) * 0.02;
+
+    for (let i = 0; i < 40; i++){
+      const s = Math.min(rw, rh);
+      if (s < minSize || rw <= 0 || rh <= 0) break;
+
+      const sx = (entryCorner === 'TL' || entryCorner === 'BL') ? rx : rx + rw - s;
+      const sy = (entryCorner === 'TL' || entryCorner === 'TR') ? ry : ry + rh - s;
+      let nrx, nry, nrw, nrh;
+      if (rw <= rh){
+        nrx = rx; nrw = rw; nrh = rh - s;
+        nry = (entryCorner === 'TL' || entryCorner === 'TR') ? ry + s : ry;
+      } else {
+        nry = ry; nrh = rh; nrw = rw - s;
+        nrx = (entryCorner === 'TL' || entryCorner === 'BL') ? rx + s : rx;
+      }
+
+      const C = { TL:[sx,sy], TR:[sx+s,sy], BL:[sx,sy+s], BR:[sx+s,sy+s] };
+      const exitName = diagonal[entryCorner];
+      const pivot = C[cwPrev[entryCorner]];
+      const a = C[entryCorner], b = C[exitName];
+      const angleA = Math.atan2(a[1]-pivot[1], a[0]-pivot[0]);
+      const angleB = Math.atan2(b[1]-pivot[1], b[0]-pivot[0]);
+      arcs.push({ cx: pivot[0], cy: pivot[1], r: s, start: angleA, end: angleB });
+
+      rx = nrx; ry = nry; rw = nrw; rh = nrh;
+      if (rw <= 0 || rh <= 0) break;
+      const RC = { TL:[rx,ry], TR:[rx+rw,ry], BL:[rx,ry+rh], BR:[rx+rw,ry+rh] };
+      const nextCorner = Object.keys(RC).find(n => Math.abs(RC[n][0]-b[0])<0.01 && Math.abs(RC[n][1]-b[1])<0.01);
+      if (!nextCorner) break;
+      entryCorner = nextCorner;
+    }
+    return arcs;
+  }
+
+  function drawSpiral(ctx, w, h, alpha, orient){
+    const arcs = computeSpiralArcs(w, h);
+    const flipX = (orient === 1 || orient === 3);
+    const flipY = (orient === 2 || orient === 3);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(flipX ? w : 0, flipY ? h : 0);
+    ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+
+    ctx.strokeStyle = '#7c9dff';
+    ctx.lineWidth = Math.max(1.2, w*0.0022);
+    ctx.beginPath();
+    arcs.forEach(a=>{
+      ctx.moveTo(a.cx + a.r*Math.cos(a.start), a.cy + a.r*Math.sin(a.start));
+      ctx.arc(a.cx, a.cy, a.r, a.start, a.end, false);
+    });
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(124,157,255,0.35)';
+    ctx.lineWidth = Math.max(0.8, w*0.0012);
+    arcs.forEach(a=>{
+      const x = a.cx - a.r, y = a.cy - a.r, s = a.r*2;
+      ctx.strokeRect(x, y, s, s);
+    });
+    ctx.restore();
+  }
+
+  // ---------- color analysis (k-means) ----------
+
+  function getAnalysisPixels(img){
+    const scale = Math.min(1, ANALYSIS_DIM / Math.max(img.width, img.height));
+    const aw = Math.max(1, Math.round(img.width * scale));
+    const ah = Math.max(1, Math.round(img.height * scale));
+    const off = document.createElement('canvas');
+    off.width = aw; off.height = ah;
+    const octx = off.getContext('2d');
+    octx.drawImage(img, 0, 0, aw, ah);
+    const data = octx.getImageData(0,0,aw,ah).data;
+    const pixels = [];
+    for (let i=0; i<data.length; i+=4){
+      if (data[i+3] < 16) continue; // skip near-transparent
+      pixels.push([data[i], data[i+1], data[i+2]]);
+    }
+    return pixels;
+  }
+
+  function dist2(a,b){
+    const dr=a[0]-b[0], dg=a[1]-b[1], db=a[2]-b[2];
+    return dr*dr+dg*dg+db*db;
+  }
+
+  function kmeansPP(pixels, k){
+    const centroids = [];
+    centroids.push(pixels[Math.floor(Math.random()*pixels.length)].slice());
+    while (centroids.length < k){
+      const dists = pixels.map(p=>{
+        let min = Infinity;
+        for (const c of centroids){ const d = dist2(p,c); if (d<min) min=d; }
+        return min;
+      });
+      const sum = dists.reduce((a,b)=>a+b,0);
+      if (sum <= 0){
+        centroids.push(pixels[Math.floor(Math.random()*pixels.length)].slice());
+        continue;
+      }
+      let r = Math.random()*sum;
+      let idx = 0;
+      for (; idx<dists.length; idx++){ r -= dists[idx]; if (r<=0) break; }
+      centroids.push(pixels[Math.min(idx, pixels.length-1)].slice());
+    }
+    return centroids;
+  }
+
+  function kmeans(pixels, k, maxIter){
+    if (pixels.length === 0) return [];
+    k = Math.min(k, pixels.length);
+    let centroids = kmeansPP(pixels, k);
+    let assignments = new Array(pixels.length).fill(0);
+
+    for (let iter=0; iter<maxIter; iter++){
+      let changed = false;
+      for (let i=0; i<pixels.length; i++){
+        let best = 0, bestD = Infinity;
+        for (let c=0; c<centroids.length; c++){
+          const d = dist2(pixels[i], centroids[c]);
+          if (d < bestD){ bestD = d; best = c; }
+        }
+        if (assignments[i] !== best){ assignments[i] = best; changed = true; }
+      }
+      const sums = centroids.map(()=>[0,0,0,0]);
+      for (let i=0; i<pixels.length; i++){
+        const c = assignments[i];
+        sums[c][0]+=pixels[i][0]; sums[c][1]+=pixels[i][1]; sums[c][2]+=pixels[i][2]; sums[c][3]+=1;
+      }
+      centroids = centroids.map((old,c)=>{
+        if (sums[c][3] === 0) return old;
+        return [sums[c][0]/sums[c][3], sums[c][1]/sums[c][3], sums[c][2]/sums[c][3]];
+      });
+      if (!changed) break;
+    }
+
+    const counts = new Array(centroids.length).fill(0);
+    assignments.forEach(a=>counts[a]++);
+    const total = pixels.length;
+    const result = centroids.map((c,i)=>({
+      r: Math.round(c[0]), g: Math.round(c[1]), b: Math.round(c[2]),
+      pct: total ? (counts[i]/total*100) : 0
+    }));
+    result.sort((a,b)=>b.pct - a.pct);
+    return result;
+  }
+
+  function rgbToHex(r,g,b){
+    return '#' + [r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('').toUpperCase();
+  }
+
+  function rgbToCmyk(r,g,b){
+    const rp = r/255, gp = g/255, bp = b/255;
+    const k = 1 - Math.max(rp,gp,bp);
+    if (k >= 1) return { c:0, m:0, y:0, k:100 };
+    const c = (1-rp-k)/(1-k);
+    const m = (1-gp-k)/(1-k);
+    const y = (1-bp-k)/(1-k);
+    return {
+      c: Math.round(c*100), m: Math.round(m*100), y: Math.round(y*100), k: Math.round(k*100)
+    };
+  }
+
+  function runColorAnalysis(){
+    if (!state.img) return;
+    const k = parseInt(kSlider.value, 10);
+    const pixels = getAnalysisPixels(state.img);
+    const colors = kmeans(pixels, k, 15);
+    state.palette = colors;
+    renderPalette(colors);
+  }
+
+  function renderPalette(colors){
+    paletteList.innerHTML = '';
+    if (!colors.length){
+      paletteList.innerHTML = '<div class="footer-note">主要色を抽出できませんでした。</div>';
+      return;
+    }
+    colors.forEach(c=>{
+      const hex = rgbToHex(c.r,c.g,c.b);
+      const cmyk = rgbToCmyk(c.r,c.g,c.b);
+      const item = document.createElement('div');
+      item.className = 'swatch-item';
+      item.innerHTML = `
+        <div class="swatch-box" style="background:${hex};" title="クリックでHEXをコピー"></div>
+        <div class="swatch-meta">
+          <div class="swatch-hex">${hex}</div>
+          <div class="swatch-values">
+            <span>RGB ${c.r}, ${c.g}, ${c.b}</span>
+            <span>CMYK ${cmyk.c}, ${cmyk.m}, ${cmyk.y}, ${cmyk.k}</span>
+          </div>
+          <div class="swatch-values"><span>使用比率 ${c.pct.toFixed(1)}%</span></div>
+          <div class="swatch-bar-wrap"><div class="swatch-bar" style="width:${Math.min(100,c.pct)}%;"></div></div>
+        </div>
+      `;
+      item.querySelector('.swatch-box').addEventListener('click', ()=>{
+        copyText(hex);
+        showToast(hex + ' をコピーしました');
+      });
+      paletteList.appendChild(item);
+    });
+  }
+
+  function copyText(text){
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).catch(()=>fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
+  }
+  function fallbackCopy(text){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch(e){}
+    document.body.removeChild(ta);
+  }
+
+  kSlider.addEventListener('input', ()=>{
+    kValue.textContent = kSlider.value;
+    if (state.img) runColorAnalysis();
+  });
+
+  // ---------- structure scoring ----------
+
+  function computeGrayscaleAndEdges(img){
+    const scale = Math.min(1, ANALYSIS_DIM*2 / Math.max(img.width, img.height));
+    const aw = Math.max(2, Math.round(img.width*scale));
+    const ah = Math.max(2, Math.round(img.height*scale));
+    const off = document.createElement('canvas');
+    off.width = aw; off.height = ah;
+    const octx = off.getContext('2d');
+    octx.drawImage(img,0,0,aw,ah);
+    const data = octx.getImageData(0,0,aw,ah).data;
+    const gray = new Float32Array(aw*ah);
+    for (let i=0, p=0; i<data.length; i+=4, p++){
+      gray[p] = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+    }
+    const edge = new Float32Array(aw*ah);
+    for (let y=1; y<ah-1; y++){
+      for (let x=1; x<aw-1; x++){
+        const idx = y*aw+x;
+        const gx = gray[idx-1] - gray[idx+1];
+        const gy = gray[idx-aw] - gray[idx+aw];
+        edge[idx] = Math.sqrt(gx*gx + gy*gy);
+      }
+    }
+    return { gray, edge, aw, ah };
+  }
+
+  function lineAlignmentScore(edge, aw, ah, vLines, hLines){
+    const bandV = Math.max(1, Math.round(aw*0.035));
+    const bandH = Math.max(1, Math.round(ah*0.035));
+    let total = 0;
+    for (let i=0; i<edge.length; i++) total += edge[i];
+    if (total <= 0) return 0;
+
+    let onLines = 0;
+    vLines.forEach(f=>{
+      const cx = Math.round(aw*f);
+      for (let x=Math.max(0,cx-bandV); x<Math.min(aw,cx+bandV); x++){
+        for (let y=0; y<ah; y++) onLines += edge[y*aw+x];
+      }
+    });
+    hLines.forEach(f=>{
+      const cy = Math.round(ah*f);
+      for (let y=Math.max(0,cy-bandH); y<Math.min(ah,cy+bandH); y++){
+        for (let x=0; x<aw; x++) onLines += edge[y*aw+x];
+      }
+    });
+
+    const bandAreaFrac = Math.min(1,
+      (vLines.length * (2*bandV) / aw) + (hLines.length * (2*bandH) / ah)
+    );
+    const expected = total * bandAreaFrac;
+    if (expected <= 0) return 0;
+    const lift = onLines / expected; // >1 means edges concentrate on the guide lines
+    return Math.max(0, Math.min(100, (lift - 0.6) * 55));
+  }
+
+  function symmetryScoreOf(gray, aw, ah, axis){
+    let diffSum = 0, count = 0;
+    if (axis === 'v'){
+      for (let y=0; y<ah; y++){
+        for (let x=0; x<Math.floor(aw/2); x++){
+          const mx = aw-1-x;
+          diffSum += Math.abs(gray[y*aw+x] - gray[y*aw+mx]);
+          count++;
+        }
+      }
+    } else {
+      for (let y=0; y<Math.floor(ah/2); y++){
+        const my = ah-1-y;
+        for (let x=0; x<aw; x++){
+          diffSum += Math.abs(gray[y*aw+x] - gray[my*aw+x]);
+          count++;
+        }
+      }
+    }
+    if (count === 0) return 0;
+    const meanDiff = diffSum / count;
+    return Math.max(0, Math.min(100, (1 - meanDiff/128) * 100));
+  }
+
+  function runStructureAnalysis(){
+    if (!state.img) return;
+    const { gray, edge, aw, ah } = computeGrayscaleAndEdges(state.img);
+    const phiInv = 1/1.618033988749895;
+    const goldenLines = [1-phiInv, phiInv];
+    const thirdsLines = [1/3, 2/3];
+
+    const goldenScore = lineAlignmentScore(edge, aw, ah, goldenLines, goldenLines);
+    const thirdsScore = lineAlignmentScore(edge, aw, ah, thirdsLines, thirdsLines);
+    const symH = symmetryScoreOf(gray, aw, ah, 'v'); // left-right mirror
+    const symV = symmetryScoreOf(gray, aw, ah, 'h'); // top-bottom mirror
+
+    let comment;
+    if (goldenScore >= thirdsScore && goldenScore >= 45){
+      comment = `<b>この画像は黄金比に近い構図です</b>(適合度 ${goldenScore.toFixed(0)}%)。主要な要素が黄金分割線付近に配置されている傾向があります。`;
+    } else if (thirdsScore > goldenScore && thirdsScore >= 45){
+      comment = `<b>この画像は三分割法(ルールオブサード)に近い構図です</b>(適合度 ${thirdsScore.toFixed(0)}%)。要素が3分割の交点・線付近にまとまっています。`;
+    } else {
+      comment = `黄金比・三分割法いずれの明確な整列も弱め(黄金比 ${goldenScore.toFixed(0)}% / 三分割 ${thirdsScore.toFixed(0)}%)です。自由な構図、または中央寄せの可能性があります。`;
+    }
+    if (symH >= 75){
+      comment += ` また左右対称性が高く(スコア ${symH.toFixed(0)}%)、安定感のある構図です。`;
+    } else if (symH < 40){
+      comment += ` 左右対称性は低め(スコア ${symH.toFixed(0)}%)で、動きのある非対称構図です。`;
+    }
+
+    analysisComment.innerHTML = comment;
+    scoreList.innerHTML = `
+      <div><span>黄金比 適合度</span><span class="val">${goldenScore.toFixed(0)}%</span></div>
+      <div><span>三分割法 適合度</span><span class="val">${thirdsScore.toFixed(0)}%</span></div>
+      <div><span>左右対称スコア</span><span class="val">${symH.toFixed(0)}%</span></div>
+      <div><span>上下対称スコア</span><span class="val">${symV.toFixed(0)}%</span></div>
+    `;
+  }
+
+  // ---------- export ----------
+
+  exportPngBtn.addEventListener('click', ()=>{
+    if (!state.img) return;
+    canvas.toBlob(blob=>{
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'flyer-analysis-overlay.png';
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  });
+
+  exportOriginalBtn.addEventListener('click', ()=>{
+    if (!state.originalDataUrl) return;
+    const a = document.createElement('a');
+    a.href = state.originalDataUrl;
+    a.download = state.originalFileName;
+    a.click();
+  });
+
+  function buildPaletteExportObject(){
+    return {
+      generatedAt: new Date().toISOString(),
+      colorCount: state.palette.length,
+      colors: state.palette.map(c=>{
+        const hex = rgbToHex(c.r,c.g,c.b);
+        const cmyk = rgbToCmyk(c.r,c.g,c.b);
+        return {
+          hex, rgb: { r:c.r, g:c.g, b:c.b }, cmyk,
+          usagePercent: Number(c.pct.toFixed(2))
+        };
+      })
+    };
+  }
+
+  function downloadBlob(content, filename, type){
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  exportJsonBtn.addEventListener('click', ()=>{
+    if (!state.palette.length) return;
+    downloadBlob(JSON.stringify(buildPaletteExportObject(), null, 2), 'flyer-palette.json', 'application/json');
+  });
+
+  exportTextBtn.addEventListener('click', ()=>{
+    if (!state.palette.length) return;
+    const obj = buildPaletteExportObject();
+    const lines = obj.colors.map((c,i)=>
+      `${i+1}. ${c.hex}  RGB(${c.rgb.r}, ${c.rgb.g}, ${c.rgb.b})  CMYK(${c.cmyk.c}, ${c.cmyk.m}, ${c.cmyk.y}, ${c.cmyk.k})  使用比率 ${c.usagePercent}%`
+    );
+    downloadBlob(lines.join('\n'), 'flyer-palette.txt', 'text/plain');
+  });
+
+})();
+</script>
+</body>
+</html>
